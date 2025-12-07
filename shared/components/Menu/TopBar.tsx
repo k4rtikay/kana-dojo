@@ -9,6 +9,8 @@ import usePreferencesStore from '@/features/Preferences/store/usePreferencesStor
 import { useClick } from '@/shared/hooks/useAudio';
 import { Play, Timer } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
+import GameModesModal from '@/shared/components/Menu/GameModesModal';
+
 interface ITopBarProps {
   currentDojo: string;
 }
@@ -18,31 +20,16 @@ const TopBar: React.FC<ITopBarProps> = ({ currentDojo }: ITopBarProps) => {
 
   const { playClick } = useClick();
 
+  // Modal state
+  const [showGameModesModal, setShowGameModesModal] = useState(false);
+
   // Kana store
-  const selectedGameModeKana = useKanaStore(
-    state => state.selectedGameModeKana
-  );
   const kanaGroupIndices = useKanaStore(state => state.kanaGroupIndices);
 
   // Kanji store
-  const selectedGameModeKanji = useKanjiStore(
-    state => state.selectedGameModeKanji
-  );
   const selectedKanjiObjs = useKanjiStore(state => state.selectedKanjiObjs);
 
-  const selectedGameModeVocab = useVocabStore(
-    state => state.selectedGameModeVocab
-  );
-
-  const selectedGameMode =
-    currentDojo === 'kana'
-      ? selectedGameModeKana
-      : currentDojo === 'kanji'
-      ? selectedGameModeKanji
-      : currentDojo === 'vocabulary'
-      ? selectedGameModeVocab
-      : '';
-
+  // Vocab store
   const selectedWordObjs = useVocabStore(state => state.selectedVocabObjs);
 
   const isFilled =
@@ -60,9 +47,16 @@ const TopBar: React.FC<ITopBarProps> = ({ currentDojo }: ITopBarProps) => {
     if (!hotkeysOn) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Enter') {
-        buttonRef.current?.click();
-      } else if (event.code === 'Space' || event.key === ' ') {
+      // Ignore if user is typing in an input field
+      if (
+        event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement
+      )
+        return;
+
+      if (event.key === 'Enter' && isFilled) {
+        event.preventDefault();
+        setShowGameModesModal(true);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -70,7 +64,7 @@ const TopBar: React.FC<ITopBarProps> = ({ currentDojo }: ITopBarProps) => {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [hotkeysOn]);
+  }, [hotkeysOn, isFilled]);
 
   const showTimedChallenge =
     currentDojo === 'kana' ||
@@ -219,38 +213,39 @@ const TopBar: React.FC<ITopBarProps> = ({ currentDojo }: ITopBarProps) => {
                 </Link>
               )}
 
-              {/* Start Training Button */}
-              <Link href={`/${currentDojo}/train`} className='flex-1 max-w-sm'>
-                <button
-                  disabled={!selectedGameMode || !isFilled}
-                  ref={buttonRef}
-                  className={clsx(
-                    'w-full h-12 px-2 sm:px-6 flex flex-row justify-center items-center gap-2',
-                    'rounded-2xl transition-colors duration-200',
-                    'font-medium border-b-6 shadow-sm',
-                    'hover:cursor-pointer',
-                    selectedGameMode && isFilled
-                      ? 'bg-[var(--main-color)] text-[var(--background-color)] border-[var(--main-color-accent)]'
-                      : 'bg-[var(--card-color)] text-[var(--border-color)] cursor-not-allowed'
-                  )}
-                  onClick={e => {
-                    e.currentTarget.blur();
-                    playClick();
-                  }}
-                >
-                  <span className='whitespace-nowrap'>Start Training</span>
-                  <Play
-                    className={clsx(
-                      selectedGameMode && isFilled && 'fill-current'
-                    )}
-                    size={20}
-                  />
-                </button>
-              </Link>
+              {/* Start Training Button - Opens Modal */}
+              <button
+                ref={buttonRef}
+                disabled={!isFilled}
+                className={clsx(
+                  'flex-1 max-w-sm h-12 px-2 sm:px-6 flex flex-row justify-center items-center gap-2',
+                  'rounded-2xl transition-colors duration-200',
+                  'font-medium border-b-6 shadow-sm',
+                  'hover:cursor-pointer',
+                  isFilled
+                    ? 'bg-[var(--main-color)] text-[var(--background-color)] border-[var(--main-color-accent)]'
+                    : 'bg-[var(--card-color)] text-[var(--border-color)] cursor-not-allowed'
+                )}
+                onClick={e => {
+                  e.currentTarget.blur();
+                  playClick();
+                  setShowGameModesModal(true);
+                }}
+              >
+                <span className='whitespace-nowrap'>Start Training</span>
+                <Play className={clsx(isFilled && 'fill-current')} size={20} />
+              </button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Game Modes Modal */}
+      <GameModesModal
+        isOpen={showGameModesModal}
+        onClose={() => setShowGameModesModal(false)}
+        currentDojo={currentDojo}
+      />
     </>
   );
 };

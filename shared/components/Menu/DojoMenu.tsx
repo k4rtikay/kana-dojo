@@ -1,10 +1,9 @@
 'use client';
 import clsx from 'clsx';
 import TopBar from '@/shared/components/Menu/TopBar';
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import Sidebar from '@/shared/components/Menu/Sidebar';
 import Info from '@/shared/components/Menu/Info';
-import GameModes from '@/shared/components/Menu/GameModes';
 import KanaCards from '@/features/Kana/components/KanaCards';
 import Banner from '@/shared/components/Menu/Banner';
 import CollectionSelector from '@/shared/components/Menu/CollectionSelector';
@@ -17,36 +16,10 @@ const DojoMenu = () => {
   const pathname = usePathname();
   const pathWithoutLocale = removeLocaleFromPath(pathname);
 
-  const [showGameModes, setShowGameModes] = useState(true);
-
   useEffect(() => {
     // clearKanji();
     // clearWords();
   }, []);
-
-  // Hotkey support: Enter or Space to toggle GameModes
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Only trigger on Kanji/Vocab pages
-      if (pathWithoutLocale !== '/kanji' && pathWithoutLocale !== '/vocabulary')
-        return;
-
-      // Ignore if user is typing in an input field
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement
-      )
-        return;
-
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        setShowGameModes(prev => !prev);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pathWithoutLocale]);
 
   return (
     <div className='min-h-[100dvh] max-w-[100dvw] lg:pr-20 flex gap-4'>
@@ -63,7 +36,6 @@ const DojoMenu = () => {
         {pathWithoutLocale === '/kana' ? (
           <div className='flex flex-col gap-3'>
             <Info />
-            {showGameModes && <GameModes />}
             <KanaCards />
           </div>
         ) : pathWithoutLocale === '/kanji' ? (
