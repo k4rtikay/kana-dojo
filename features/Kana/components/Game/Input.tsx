@@ -1,13 +1,12 @@
 'use client';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { kana } from '@/features/Kana/data/kana';
 import useKanaStore from '@/features/Kana/store/useKanaStore';
 import { CircleCheck, CircleX, CircleArrowRight } from 'lucide-react';
-import { Random } from 'random-js';
+import { motion } from 'framer-motion';
 import clsx from 'clsx';
 import { useClick, useCorrect, useError } from '@/shared/hooks/useAudio';
 import GameIntel from '@/shared/components/Game/GameIntel';
-import { buttonBorderStyles } from '@/shared/lib/styles';
 import { useStopwatch } from 'react-timer-hook';
 import useStats from '@/shared/hooks/useStats';
 import useStatsStore from '@/features/Progress/store/useStatsStore';
@@ -15,8 +14,7 @@ import { useShallow } from 'zustand/react/shallow';
 import Stars from '@/shared/components/Game/Stars';
 import { useCrazyModeTrigger } from '@/features/CrazyMode/hooks/useCrazyModeTrigger';
 import { getGlobalAdaptiveSelector } from '@/shared/lib/adaptiveSelection';
-
-const random = new Random();
+import { ActionButton } from '@/shared/components/ui/ActionButton';
 
 // Get the global adaptive selector for weighted character selection
 const adaptiveSelector = getGlobalAdaptiveSelector();
@@ -33,6 +31,9 @@ const isKatakana = (char: string): boolean => {
   const code = char.charCodeAt(0);
   return code >= 0x30a0 && code <= 0x30ff;
 };
+
+// Bottom bar states
+type BottomBarState = 'check' | 'correct' | 'wrong';
 
 interface InputGameProps {
   isHidden: boolean;
@@ -76,9 +77,11 @@ const InputGame = ({ isHidden, isReverse = false }: InputGameProps) => {
   const { trigger: triggerCrazyMode } = useCrazyModeTrigger();
 
   const inputRef = useRef<HTMLInputElement>(null);
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   const [inputValue, setInputValue] = useState('');
+  const [bottomBarState, setBottomBarState] = useState<BottomBarState>('check');
+  const [lastWrongInput, setLastWrongInput] = useState('');
 
   const kanaGroupIndices = useKanaStore(state => state.kanaGroupIndices);
 
@@ -119,28 +122,30 @@ const InputGame = ({ isHidden, isReverse = false }: InputGameProps) => {
 
   const targetChar = selectedPairs[correctChar];
 
-  const [feedback, setFeedback] = useState(<>{'feeback ~'}</>);
-
   useEffect(() => {
-    if (inputRef.current) {
+    if (inputRef.current && bottomBarState === 'check') {
       inputRef.current.focus();
     }
-  }, []);
+  }, [bottomBarState]);
 
+  // Keyboard shortcut for Enter/Space to trigger button
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      const skipKey = isReverse ? ' ' : '/';
-      if (event.key === skipKey) {
-        buttonRef.current?.click();
+      if (
+        ((event.ctrlKey || event.metaKey) && event.key === 'Enter') ||
+        event.code === 'Space' ||
+        event.key === ' '
+      ) {
+        // Only trigger button for continue/try again states
+        if (bottomBarState !== 'check') {
+          buttonRef.current?.click();
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isReverse]);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [bottomBarState]);
 
   useEffect(() => {
     if (isHidden) speedStopwatch.pause();
@@ -153,19 +158,42 @@ const InputGame = ({ isHidden, isReverse = false }: InputGameProps) => {
     return null;
   }
 
-  const handleEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && inputValue.trim().length) {
-      const trimmedInput = inputValue.trim();
-      const isCorrect = isReverse
-        ? trimmedInput === targetChar
-        : trimmedInput.toLowerCase() === targetChar ||
-          trimmedInput === correctChar;
+  const generateNewCharacter = () => {
+    const sourceArray = isReverse ? selectedRomaji : selectedKana;
+    // Use weighted selection - prioritizes characters user struggles with
+    const newChar = adaptiveSelector.selectWeightedCharacter(
+      sourceArray,
+      correctChar
+    );
+    adaptiveSelector.markCharacterSeen(newChar);
+    setCorrectChar(newChar);
+  };
 
-      if (isCorrect) {
-        handleCorrectAnswer();
-      } else {
-        handleWrongAnswer();
-      }
+  const handleEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (
+      e.key === 'Enter' &&
+      inputValue.trim().length &&
+      bottomBarState !== 'correct'
+    ) {
+      handleCheck();
+    }
+  };
+
+  const handleCheck = () => {
+    if (inputValue.trim().length === 0) return;
+
+    const trimmedInput = inputValue.trim();
+    const isCorrect = isReverse
+      ? trimmedInput === targetChar
+      : trimmedInput.toLowerCase() === targetChar ||
+        trimmedInput === correctChar;
+
+    playClick();
+
+    if (isCorrect) {
+      handleCorrectAnswer();
+    } else {
+      handleWrongAnswer(trimmedInput);
     }
   };
 
@@ -182,14 +210,6 @@ const InputGame = ({ isHidden, isReverse = false }: InputGameProps) => {
     incrementCorrectAnswers();
     setScore(score + 1);
 
-    setInputValue('');
-    generateNewCharacter();
-    setFeedback(
-      <>
-        <span>{`${correctChar} = ${targetChar} `}</span>
-        <CircleCheck className='inline text-[var(--main-color)]' />
-      </>
-    );
     triggerCrazyMode();
     // Update adaptive weight system - reduces probability of mastered characters
     adaptiveSelector.updateCharacterWeight(correctChar, true);
@@ -201,16 +221,11 @@ const InputGame = ({ isHidden, isReverse = false }: InputGameProps) => {
     }
     // Reset wrong streak on correct answer (Requirement 10.2)
     resetWrongStreak();
+    setBottomBarState('correct');
   };
 
-  const handleWrongAnswer = () => {
-    setInputValue('');
-    setFeedback(
-      <>
-        <span>{`${correctChar} ≠ ${inputValue} `}</span>
-        <CircleX className='inline text-[var(--main-color)]' />
-      </>
-    );
+  const handleWrongAnswer = (wrongInput: string) => {
+    setLastWrongInput(wrongInput);
     playErrorTwice();
 
     incrementCharacterScore(correctChar, 'wrong');
@@ -225,28 +240,22 @@ const InputGame = ({ isHidden, isReverse = false }: InputGameProps) => {
     adaptiveSelector.updateCharacterWeight(correctChar, false);
     // Track wrong streak for achievements (Requirement 10.2)
     incrementWrongStreak();
+    setBottomBarState('wrong');
   };
 
-  const generateNewCharacter = () => {
-    const sourceArray = isReverse ? selectedRomaji : selectedKana;
-    // Use weighted selection - prioritizes characters user struggles with
-    const newChar = adaptiveSelector.selectWeightedCharacter(
-      sourceArray,
-      correctChar
-    );
-    adaptiveSelector.markCharacterSeen(newChar);
-    setCorrectChar(newChar);
-  };
-
-  const handleSkip = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleContinue = useCallback(() => {
     playClick();
-    e.currentTarget.blur();
     setInputValue('');
     generateNewCharacter();
-    setFeedback(<>{`skipped ~ ${correctChar} = ${targetChar}`}</>);
-  };
+    setBottomBarState('check');
+    speedStopwatch.reset();
+    speedStopwatch.start();
+  }, [playClick]);
 
   const gameMode = isReverse ? 'reverse input' : 'input';
+  const canCheck = inputValue.trim().length > 0 && bottomBarState !== 'correct';
+  const showContinue = bottomBarState === 'correct';
+  const showFeedback = bottomBarState !== 'check';
 
   return (
     <div
@@ -255,47 +264,120 @@ const InputGame = ({ isHidden, isReverse = false }: InputGameProps) => {
         isHidden ? 'hidden' : ''
       )}
     >
-      <GameIntel gameMode={gameMode} feedback={feedback} />
+      <GameIntel gameMode={gameMode} />
       <div className='flex flex-row items-center gap-1'>
-        <p className='text-8xl font-medium sm:text-9xl'>{correctChar}</p>
-
-        {/* {!isReverse && (
-          <SSRAudioButton
-            text={correctChar}
-            variant='icon-only'
-            size='sm'
-            className='bg-[var(--card-color)] text-[var(--secondary-color)]'
-          />
-        )}
- */}
+        <motion.p
+          className='text-8xl font-medium sm:text-9xl'
+          initial={{ opacity: 0, y: -30, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{
+            type: 'spring',
+            stiffness: 80,
+            damping: 20,
+            mass: 1
+          }}
+          key={correctChar}
+        >
+          {correctChar}
+        </motion.p>
       </div>
-      <input
-        ref={inputRef}
-        type='text'
+      <textarea
+        ref={inputRef as any}
         value={inputValue}
+        placeholder='Type your answer...'
+        disabled={showContinue}
+        rows={2}
         className={clsx(
-          'border-b-2 pb-1 text-center text-2xl text-[var(--secondary-color)] focus:outline-none lg:text-5xl',
-          'border-[var(--border-color)] focus:border-[var(--secondary-color)]/80'
+          'w-full max-w-xs sm:max-w-sm md:max-w-md',
+          'rounded-2xl px-5 py-4',
+          'border-1 border-[var(--border-color)] bg-[var(--card-color)]',
+          'text-left text-lg font-medium lg:text-xl',
+          'text-[var(--secondary-color)] placeholder:text-base placeholder:font-normal placeholder:text-[var(--secondary-color)]/40',
+          'resize-none focus:outline-none',
+          'transition-colors duration-200 ease-out',
+          showContinue && 'cursor-not-allowed opacity-60'
         )}
         onChange={e => setInputValue(e.target.value)}
-        onKeyDown={handleEnter}
+        onKeyDown={e => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            handleEnter(e as any);
+          }
+        }}
       />
-      <button
-        ref={buttonRef}
-        className={clsx(
-          'rounded-3xl px-16 py-4 text-xl font-medium',
-          'flex flex-row items-end gap-2',
-          buttonBorderStyles,
-          'active:scale-95 active:duration-200 md:active:scale-98',
-          'text-[var(--secondary-color)]',
-          'border-b-4 border-[var(--border-color)] hover:border-[var(--secondary-color)]/80'
-        )}
-        onClick={handleSkip}
-      >
-        <span>skip</span>
-        <CircleArrowRight />
-      </button>
       <Stars />
+
+      {/* Bottom Bar - min-h-20 prevents layout jank when buttons are pressed */}
+      <div
+        className={clsx(
+          'right-0 left-0 w-full',
+          'border-t-2 border-[var(--border-color)] bg-[var(--card-color)]',
+          'absolute bottom-0 z-10 px-2 py-2 sm:py-3 md:bottom-6 md:px-12 md:pt-2 md:pb-4',
+          'flex min-h-20 flex-row items-center justify-center'
+        )}
+      >
+        {/* Left Container: 50% width, aligned right */}
+        <div className='flex w-1/2 items-center justify-center'>
+          <div
+            className={clsx(
+              'flex items-center gap-2 transition-all duration-500 sm:gap-3 md:gap-4',
+              showFeedback
+                ? 'translate-x-0 opacity-100'
+                : 'pointer-events-none -translate-x-4 opacity-0 sm:-translate-x-8'
+            )}
+          >
+            {bottomBarState === 'correct' ? (
+              <CircleCheck className='h-10 w-10 text-[var(--main-color)] sm:h-12 sm:w-12' />
+            ) : (
+              <CircleX className='h-10 w-10 text-[var(--main-color)] sm:h-12 sm:w-12' />
+            )}
+            <div className='flex flex-col'>
+              <span
+                className={clsx(
+                  'text-lg sm:text-2xl',
+                  'text-[var(--secondary-color)]'
+                )}
+              >
+                {bottomBarState === 'correct'
+                  ? 'Nicely done!'
+                  : 'Wrong! Correct answer:'}
+              </span>
+              <span className='text-sm text-[var(--main-color)] sm:text-lg'>
+                {targetChar}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Container: 50% width */}
+        <div className='flex w-1/2 flex-row items-end justify-center gap-3'>
+          {/* Fixed-height wrapper prevents layout shift when button is pressed */}
+          <div className='flex h-[68px] items-end sm:h-[72px]'>
+            <ActionButton
+              ref={buttonRef}
+              borderBottomThickness={12}
+              borderRadius='3xl'
+              className={clsx(
+                'w-auto px-6 py-2.5 text-lg font-medium transition-all duration-150 sm:px-12 sm:py-3 sm:text-xl',
+                !canCheck && !showContinue && 'cursor-default opacity-60'
+              )}
+              onClick={showContinue ? handleContinue : handleCheck}
+            >
+              <span className='max-sm:hidden'>
+                {showContinue ? 'continue' : 'check'}
+              </span>
+              {showContinue ? (
+                <CircleArrowRight className='h-8 w-8' />
+              ) : (
+                <CircleCheck className='h-8 w-8' />
+              )}
+            </ActionButton>
+          </div>
+        </div>
+      </div>
+
+      {/* Spacer */}
+      <div className='h-32' />
     </div>
   );
 };

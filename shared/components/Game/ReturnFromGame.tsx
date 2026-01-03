@@ -105,7 +105,7 @@ const Return = ({ isHidden, href, gameMode }: ReturnProps) => {
         <Link href={href} ref={buttonRef} onClick={handleExit}>
           <X
             size={32}
-            className='text-[var(--border-color)] duration-250 hover:cursor-pointer hover:text-[var(--secondary-color)]'
+            className='text-[var(--border-color)] hover:scale-125 duration-250 hover:cursor-pointer hover:text-[var(--secondary-color)]'
           />
         </Link>
         <ProgressBar />
