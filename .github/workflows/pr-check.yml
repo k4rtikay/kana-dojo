@@ -39,7 +39,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
-            const templates = require('./.github/templates/messages.js');
+            const templates = require('./.github/templates/messages.cjs');
             const t = templates.prCheck.failure;
 
             const output = fs.readFileSync('check_output.txt', 'utf8');
@@ -76,7 +76,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const templates = require('./.github/templates/messages.js');
+            const templates = require('./.github/templates/messages.cjs');
             const t = templates.prCheck.success;
 
             const { data: comments } = await github.rest.issues.listComments({

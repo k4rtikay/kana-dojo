@@ -26,7 +26,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
-            const templates = require('./.github/templates/messages.js');
+            const templates = require('./.github/templates/messages.cjs');
             const t = templates.staleIssues;
 
             const themeBacklogPath = 'data/community/theme-backlog.json';
