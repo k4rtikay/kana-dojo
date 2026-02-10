@@ -437,7 +437,8 @@
     "romaji": "Nakama o shinjiru koto ga ore no mahou da",
     "english": "Believing in my friends is my magic.",
     "anime": "Fairy Tail",
-    "character": "Natsu Dragneel"
+    "character": "Natsu Dragneel",
+    "completed": true
   },
   {
     "id": 50,
@@ -445,7 +446,8 @@
     "romaji": "Akirameru to iu kotoba wa ore no jisho ni nai",
     "english": "The word 'give up' isn't in my dictionary.",
     "anime": "Black Clover",
-    "character": "Asta"
+    "character": "Asta",
+    "issued": true
   },
   {
     "id": 51,
