@@ -25,6 +25,30 @@ export interface GeneratedWallpaper {
  */
 export const GENERATED_WALLPAPERS: GeneratedWallpaper[] = [
   {
+    id: 'bangkok-night',
+    name: 'Bangkok Night',
+    url: '/wallpapers/bangkok-night-1920w.avif',
+    urlWebp: '/wallpapers/bangkok-night-1920w.webp',
+  },
+  {
+    id: 'bangkok-park',
+    name: 'Bangkok Park',
+    url: '/wallpapers/bangkok-park-1920w.avif',
+    urlWebp: '/wallpapers/bangkok-park-1920w.webp',
+  },
+  {
+    id: 'bangkok-river',
+    name: 'Bangkok River',
+    url: '/wallpapers/bangkok-river-1920w.avif',
+    urlWebp: '/wallpapers/bangkok-river-1920w.webp',
+  },
+  {
+    id: 'bangkok-storm',
+    name: 'Bangkok Storm',
+    url: '/wallpapers/bangkok-storm-1920w.avif',
+    urlWebp: '/wallpapers/bangkok-storm-1920w.webp',
+  },
+  {
     id: 'bangkok-sunset',
     name: 'Bangkok Sunset',
     url: '/wallpapers/bangkok-sunset-1920w.avif',
